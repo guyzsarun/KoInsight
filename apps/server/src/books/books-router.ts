@@ -28,6 +28,37 @@ router.get('/:bookId', getBookById, async (req: Request, res: Response, next: Ne
 });
 
 /**
+ * Export a book's annotations as Markdown
+ */
+router.get('/:bookId/annotations/export', getBookById, async (req: Request, res: Response) => {
+  const book = req.book!;
+  const annotations = await BooksService.withData(book);
+  const activeAnnotations = annotations.annotations.filter((a) => !a.deleted);
+  const lines: string[] = [`# ${book.title}`, ''];
+
+  activeAnnotations.forEach((annotation) => {
+    const typeLabel = annotation.annotation_type.charAt(0).toUpperCase() + annotation.annotation_type.slice(1);
+    const pagePart = annotation.pageno ? ` (Page ${annotation.pageno})` : '';
+    const chapterPart = annotation.chapter ? ` - ${annotation.chapter}` : '';
+
+    let line = `- **${typeLabel}**${pagePart}${chapterPart}`;
+    if (annotation.text) {
+      line += `: ${annotation.text}`;
+    }
+    lines.push(line);
+
+    if (annotation.note) {
+      lines.push(`  - Note: ${annotation.note}`);
+    }
+  });
+
+  const filename = `${book.title.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-annotations.md`;
+  res.setHeader('Content-Type', 'text/markdown');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.status(200).send(lines.join('\n'));
+});
+
+/**
  * Delete a book by ID
  */
 router.delete('/:bookId', getBookById, async (req: Request, res: Response) => {

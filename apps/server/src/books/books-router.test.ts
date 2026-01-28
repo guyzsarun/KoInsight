@@ -3,6 +3,8 @@ import request from 'supertest';
 import { createBook } from '../db/factories/book-factory';
 import { db } from '../knex';
 import { booksRouter } from './books-router';
+import { createDevice } from '../db/factories/device-factory';
+import { createAnnotation } from '../db/factories/annotation-factory';
 
 describe('books-router', () => {
   const app = express();
@@ -53,6 +55,41 @@ describe('books-router', () => {
       const response = await request(app).get(`/books/${book.id}`);
       expect(response.status).toBe(200);
       expect(response.body).toEqual(expect.objectContaining({ title: 'Test Book' }));
+    });
+  });
+
+  describe('GET /books/:bookId/annotations/export', () => {
+    it('exports annotations as markdown and skips deleted ones', async () => {
+      const book = await createBook(db, { title: 'Annotated Book' });
+      const device = await createDevice(db);
+
+      await createAnnotation(db, book, device, 'highlight', {
+        text: 'A great quote',
+        note: 'Remember this',
+        chapter: 'Intro',
+        pageno: 2,
+      });
+
+      // Soft-deleted annotation should not appear
+      await db('annotation').insert({
+        book_md5: book.md5,
+        device_id: device.id,
+        annotation_type: 'bookmark',
+        page_ref: '3',
+        datetime: new Date().toISOString(),
+        deleted_at: new Date().toISOString(),
+      });
+
+      const response = await request(app).get(`/books/${book.id}/annotations/export`);
+
+      expect(response.status).toBe(200);
+      expect(response.headers['content-type']).toContain('text/markdown');
+      expect(response.headers['content-disposition']).toContain('annotations.md');
+      expect(response.text).toContain('# Annotated Book');
+      expect(response.text).toContain('**Highlight** (Page 2)');
+      expect(response.text).toContain('A great quote');
+      expect(response.text).toContain('Note: Remember this');
+      expect(response.text).not.toContain('bookmark');
     });
   });
 
