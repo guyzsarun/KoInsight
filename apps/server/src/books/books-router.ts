@@ -32,30 +32,42 @@ router.get('/:bookId', getBookById, async (req: Request, res: Response, next: Ne
  */
 router.get('/:bookId/annotations/export', getBookById, async (req: Request, res: Response) => {
   const book = req.book!;
-  const annotations = await BooksService.withData(book);
-  const activeAnnotations = annotations.annotations.filter((a) => !a.deleted);
-  const lines: string[] = [`# ${book.title}`, ''];
+  try {
+    const annotations = await BooksService.withData(book);
+    const activeAnnotations = annotations.annotations.filter((a) => !a.deleted);
 
-  activeAnnotations.forEach((annotation) => {
-    const typeLabel = annotation.annotation_type.charAt(0).toUpperCase() + annotation.annotation_type.slice(1);
-    const pagePart = annotation.pageno ? ` (Page ${annotation.pageno})` : '';
-    const chapterPart = annotation.chapter ? ` - ${annotation.chapter}` : '';
+    const escapeMd = (value: string) =>
+      value.replace(/([\\\\`*_[\\]{}()#+\\-.!>])/g, '\\\\$1');
 
-    let line = `- **${typeLabel}**${pagePart}${chapterPart}`;
-    if (annotation.text) {
-      line += `: ${annotation.text}`;
-    }
-    lines.push(line);
+    const safeTitle = escapeMd(book.title);
+    const lines: string[] = [`# ${safeTitle}`, ''];
 
-    if (annotation.note) {
-      lines.push(`  - Note: ${annotation.note}`);
-    }
-  });
+    activeAnnotations.forEach((annotation) => {
+      const typeLabel =
+        annotation.annotation_type.charAt(0).toUpperCase() + annotation.annotation_type.slice(1);
+      const pagePart = annotation.pageno ? ` (Page ${annotation.pageno})` : '';
+      const chapterPart = annotation.chapter ? ` - ${escapeMd(annotation.chapter)}` : '';
 
-  const filename = `${book.title.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-annotations.md`;
-  res.setHeader('Content-Type', 'text/markdown');
-  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-  res.status(200).send(lines.join('\n'));
+      let line = `- **${typeLabel}**${pagePart}${chapterPart}`;
+      if (annotation.text) {
+        line += `: ${escapeMd(annotation.text)}`;
+      }
+      lines.push(line);
+
+      if (annotation.note) {
+        lines.push(`  - Note: ${escapeMd(annotation.note)}`);
+      }
+    });
+
+    const filenameBase = book.title.replace(/[^a-z0-9]+/gi, '-').toLowerCase().slice(0, 100);
+    const filename = `${filenameBase || 'book'}-annotations.md`;
+    res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename.replace(/"/g, '')}"`);
+    res.status(200).send(lines.join('\n'));
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to export annotations' });
+  }
 });
 
 /**

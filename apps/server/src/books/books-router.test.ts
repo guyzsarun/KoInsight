@@ -87,9 +87,37 @@ describe('books-router', () => {
       expect(response.headers['content-disposition']).toContain('annotations.md');
       expect(response.text).toContain('# Annotated Book');
       expect(response.text).toContain('**Highlight** (Page 2)');
+      expect(response.text).toContain('Intro');
       expect(response.text).toContain('A great quote');
       expect(response.text).toContain('Note: Remember this');
       expect(response.text).not.toContain('bookmark');
+    });
+
+    it('handles no annotations gracefully', async () => {
+      const book = await createBook(db, { title: 'Empty Book' });
+
+      const response = await request(app).get(`/books/${book.id}/annotations/export`);
+
+      expect(response.status).toBe(200);
+      expect(response.text.trim()).toBe('# Empty Book');
+    });
+
+    it('renders annotations without optional fields', async () => {
+      const book = await createBook(db, { title: 'Sparse Book' });
+      const device = await createDevice(db);
+
+      await db('annotation').insert({
+        book_md5: book.md5,
+        device_id: device.id,
+        annotation_type: 'bookmark',
+        page_ref: '1',
+        datetime: new Date().toISOString(),
+      });
+
+      const response = await request(app).get(`/books/${book.id}/annotations/export`);
+
+      expect(response.status).toBe(200);
+      expect(response.text).toContain('**Bookmark**');
     });
   });
 
