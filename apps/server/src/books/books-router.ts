@@ -28,6 +28,49 @@ router.get('/:bookId', getBookById, async (req: Request, res: Response, next: Ne
 });
 
 /**
+ * Export a book's annotations as Markdown
+ */
+router.get('/:bookId/annotations/export', getBookById, async (req: Request, res: Response) => {
+  const book = req.book!;
+  try {
+    const annotations = await BooksService.withData(book);
+    const activeAnnotations = annotations.annotations.filter((a) => !a.deleted);
+
+    const escapeMd = (value: string) =>
+      value.replace(/([\\\\`*_[\\]{}()#+\\-.!>])/g, '\\\\$1');
+
+    const safeTitle = escapeMd(book.title);
+    const lines: string[] = [`# ${safeTitle}`, ''];
+
+    activeAnnotations.forEach((annotation) => {
+      const typeLabel =
+        annotation.annotation_type.charAt(0).toUpperCase() + annotation.annotation_type.slice(1);
+      const pagePart = annotation.pageno ? ` (Page ${annotation.pageno})` : '';
+      const chapterPart = annotation.chapter ? ` - ${escapeMd(annotation.chapter)}` : '';
+
+      let line = `- **${typeLabel}**${pagePart}${chapterPart}`;
+      if (annotation.text) {
+        line += `: ${escapeMd(annotation.text)}`;
+      }
+      lines.push(line);
+
+      if (annotation.note) {
+        lines.push(`  - Note: ${escapeMd(annotation.note)}`);
+      }
+    });
+
+    const filenameBase = book.title.replace(/[^a-z0-9]+/gi, '-').toLowerCase().slice(0, 100);
+    const filename = `${filenameBase || 'book'}-annotations.md`;
+    res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename.replace(/"/g, '')}"`);
+    res.status(200).send(lines.join('\n'));
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to export annotations' });
+  }
+});
+
+/**
  * Delete a book by ID
  */
 router.delete('/:bookId', getBookById, async (req: Request, res: Response) => {

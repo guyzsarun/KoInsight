@@ -1,6 +1,7 @@
 import { Annotation, BookWithData } from '@koinsight/common/types';
-import { Accordion, Box, Divider, Stack, Text, Title } from '@mantine/core';
+import { Accordion, Box, Button, Divider, Group, Stack, Text, Title } from '@mantine/core';
 import { useMemo } from 'react';
+import { IconDownload } from '@tabler/icons-react';
 import { AnnotationCard } from './annotation-card';
 import { AnnotationFiltersComponent } from './annotation-filters';
 import { useAnnotationFilters } from './use-annotation-filters';
@@ -81,14 +82,26 @@ export function BookPageAnnotations({ book }: BookPageAnnotationsProps) {
   return (
     <Stack gap="lg">
       <Box>
-        <Title order={3} mb="xs">
-          Annotations ({filteredAndSortedAnnotations.length} of {book.annotations.length})
-        </Title>
-        <Text size="sm" c="dimmed">
-          {book.highlights_count} highlights · {book.notes_count} notes · {book.bookmarks_count}{' '}
-          bookmarks
-          {book.deleted_count > 0 && ` · ${book.deleted_count} deleted`}
-        </Text>
+        <Group justify="space-between" align="flex-start">
+          <div>
+            <Title order={3} mb="xs">
+              Annotations ({filteredAndSortedAnnotations.length} of {book.annotations.length})
+            </Title>
+            <Text size="sm" c="dimmed">
+              {book.highlights_count} highlights · {book.notes_count} notes · {book.bookmarks_count}{' '}
+              bookmarks
+              {book.deleted_count > 0 && ` · ${book.deleted_count} deleted`}
+            </Text>
+          </div>
+          <Button
+            component="a"
+            href={`/api/books/${book.id}/annotations/export`}
+            variant="light"
+            leftSection={<IconDownload size={16} />}
+          >
+            Export markdown
+          </Button>
+        </Group>
       </Box>
 
       <AnnotationFiltersComponent />
